@@ -1,0 +1,279 @@
+---
+title: "Understanding splines"
+author: "Courtney Goodridge"
+date: "04/01/2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Packages
+
+```{r}
+if(!require(here)) install.packages("here")
+library(here)
+
+if(!require(ggplot2)) install.packages("ggplot2")
+library(ggplot2)
+
+if(!require(dplyr)) install.packages("dplyr")
+library(dplyr)
+
+if(!require(tidyr)) install.packages("tidyr")
+library(tidyr)
+
+if(!require(data.table)) install.packages("data.table")
+library(data.table)
+
+if(!require(bayestestR)) install.packages("bayestestR")
+library(bayestestR)
+
+if(!require(smotefamily)) install.packages("smotefamily")
+library(smotefamily)
+
+if(!require(emmeans)) install.packages("emmeans")
+library(emmeans)
+
+if(!require(ROSE)) install.packages("ROSE")
+library(ROSE)
+
+if(!require(Rmisc)) install.packages("Rmisc")
+library(Rmisc)
+
+if(!require(metafolio)) install.packages("metafolio")
+library(metafolio)
+
+if(!require(tibble)) install.packages("tibble")
+library(tibble)
+
+if(!require(purrr)) install.packages("purrr")
+library(purrr)
+
+if(!require(splines)) install.packages("splines")
+library(splines)
+
+if(!require(ciTools)) install.packages("ciTools")
+library(ciTools)
+```
+
+## Applying splines to pupil dilation data
+
+When plotting pupil size over time, it is clear that there is a pattern during takeovers, and that perhaps this pattern changes as a function of N-back or TTC. But focusing on mean differences or even the variance over time does not reveal it. McElreath highlights how to use B splines to model this, with further help from Kurz (https://bookdown.org/content/4857/geocentric-models.html#splines). I am going to work through their cherry blossom example before trying to apply it to the pupil data. 
+
+In fact, previous research has analysed pupil dilation using splines via generalised additive models, notable van Rij et al (2019). The highlight a number of issues when analysing pupil dilation - pupil size is extremely variable, both within an individual and between different individuals. Hence it is difficult to generate a summary of a time course that accurately describes the behaviour of the pupil. For example, whilst a mean can be taken over a time course, peaks and troughs can cancel each other. Standard deviations of pupil size have been proposed as a work around, with higher SDs being indicative of higher workload fluctuation. But perhaps do not capture the peak of the workload at specific time points. 
+
+Generalised additive models can thus be used to model the non-linear trends of pupils, and whether this change as a function of differing predictor variables. I will highlight below how to do this. 
+
+Before focusing on comparing changes in pupil dilation as a function of N-back and TTC, I will work through the fitting process (via splines). 
+
+# What are splines (or "B-splines")
+
+A spline is a function that allows a researcher to model non-linear data. In short, they divide a range of values (such as time) into parts. A parameter is assigned to these parts, and the extent to which these parts are turned on or off produces the curvy line we're looking for. Hence the goal for now is to approximate the changing of size of the pupil over time. 
+
+To do this, synthetic variables are created and used in the linear model to predict mu. The synthetic variables are called *basis functions* (or sometimes known as *base functions*). How do we create the basis functions? Well, the simplest case would be that pupil diameter is a combination of linear approximations. To construct the basis functions, we divide the full range of the horizontal axis into parts - in this example, lets use 4. These parts are  pivot points called *knots*. These can largely be placed anywhere and in any number (they are part of the model and thus are a decision the researcher needs to make). In this example, I put them at specific quantiles so each partion contains the same number of data points (albeit the distance between them might not be the same). The data used in this example is average pupil diameter over time for the n_back = TRUE, ttc_criticality = 3, condition. 
+
+```{r}
+# average pupil diameter during takeovers when N-back was TRUE, and ttc = 3 s
+pupil_timecourse <- dat.eye.manual %>%
+  dplyr::group_by(trialid) %>%
+  dplyr::mutate(frame = row_number()) %>%
+  dplyr::ungroup() %>%
+  dplyr::filter(n_back == TRUE, ttc_criticality == 3) %>%
+  dplyr::group_by(frame) %>%
+  dplyr::summarise(diameter = mean(`dme_core/pupil/right_pupil_diameter_mm`)) %>%
+  dplyr::mutate(time = frame / 60) 
+```
+
+# Visualising knots on the pupil diameter timecourse data
+
+Below I plot the knots on the pupil diameter data
+
+```{r}
+# number of knots to create the spline
+num_knots <- 5
+# split time into 15 quantiles - using 15 for now but this can change
+knot_list <- quantile(pupil_timecourse$time, probs = seq(from = 0, to = 1, length.out = num_knots))
+
+# plotting pupil diameter alongside the knots
+ggplot() +
+  geom_vline(xintercept = knot_list, color = "black", alpha = .5) +
+  geom_point(pupil_timecourse, mapping = aes(x= time, y = diameter), alpha = .5) 
+```
+
+# Plotting knots and basis functions
+
+The *knots* act as pivots for the *basis functions* and are used to transition from one region to the next. In the plot below, basis function 1 has a value of 1 at the first knot whilst all others are set to zero. As we move to the right, the value of basis function one decreases and the value of basis function 2 increases. As knot 2, basis function 1 has a value of 0 and basis function 2 has a value of 1. 
+
+If we facet the plot by the basis function, this can be more easily seen. 
+
+```{r}
+# the bs() function is used to create basis functions for splines. 
+B <- bs(pupil_timecourse$time, # the predictor we want to foocus on (for a timecourse, this is time)
+        knots = knot_list[-c(1, num_knots)], # the number of knots. we remove the first and last knot values because bs() automatically adds knots at the boundaries
+        degree = 1, # the polynomial value - for linear approximations, this is 1
+        intercept = TRUE)
+
+# data wrangling for plotting
+b <-
+  B %>%
+  data.frame() %>% # convert to data frame 
+  set_names(c(str_c(1:5))) %>% # setting basis function names 
+  bind_cols(select(pupil_timecourse, time)) %>% # combine to the original dataframe 
+  pivot_longer(-time,
+               names_to = "basis_function",
+               values_to = "bias")
+
+# each black line represents the knot, the red lines represent the basis functions
+b %>% 
+  ggplot(aes(x = time, y = bias, group = basis_function)) +
+  geom_vline(xintercept = knot_list, color = "black", alpha = 1/2) +
+  geom_line(color = "#ffb7c5", alpha = .7, linewidth = 1.5) +
+  scale_x_continuous(NULL, breaks = NULL) +
+  ylab("basis value")
+
+# by faceting by the basis function, it makes it easier to see what's going on. For basis function one, the value is 1 for the first knot and then goes down to zero for the at the second knot. For basis function two, it is 0 at the first knot and increasse to 1 at the second knot. The pattern continues for the remaining basis functions. 
+b %>% 
+  ggplot(aes(x = time, y = bias)) +
+  geom_vline(xintercept = knot_list, color = "black", alpha = 1/2) +
+  geom_line(color = "#ffb7c5", alpha = .7, linewidth = 1.5) +
+  xlab("time") +
+  ylab("basis value") +
+  facet_wrap(~ basis_function)
+```
+
+# Combining the basis functions
+
+If we fit the model to data, we can generate weights for each of these basis functions. Multiplying the basis function by its weight helps structure the functions in an attempt to approximate the pupil diameter over time. As you can see, the combination of basis function attempts to model the peak in pupil diameter that occurs at around 10 s. 
+
+Weights can have negative values which can result in the basis function being below zero, as can be seen at the first knot. 
+
+```{r}
+# add the base function values to the main data set for modelling 
+d_new <-
+  pupil_timecourse %>% 
+  mutate(B = B) 
+
+# fit a model that predicts pupil diameter by the basis functions
+mod <- lm(diameter ~ 1 + B, data = d_new)
+
+summary(mod)
+
+coef(mod) %>%
+  as.data.frame() %>% # converting coefficient into a data frame
+  dplyr::rename("weight" = ".") %>% # renaming variable as the weight of the basis function
+  rownames_to_column(var = "basis_function") %>% # basis function name 
+  dplyr::filter(basis_function != "(Intercept)") %>%
+  dplyr::mutate(basis_function = as.character(row_number())) %>%
+  full_join(b, by = "basis_function") %>%
+  ggplot(aes(x = time, y = bias * weight, group = basis_function)) +
+  geom_vline(xintercept = knot_list, color = "black", alpha = 1/2) +
+  geom_line(color = "#ffb7c5", alpha = .7, linewidth = 1.5) 
+```
+
+# Predicting pupil diameter
+
+To make a prediction of pupil diameter at any given time point, we just combine the basis functions at that year. For example, the pupil diameter 10 s after the TOR would be the sum of basis functions at that point. Finally, we can plot the spline over the raw data (alongside CIs) to understand the trend. 
+
+As we can see, the fit is poor, however this is to be expected. Pupil size changes in non-linear ways and we have only used linear approximations - this means fitting only straight lines between knots. We have also only used 5 knots which only provides 5 points at which the trend can change. 
+
+```{r}
+# calculating fitted values and associated CIs
+f_cis <- add_ci(pupil_timecourse, mod)
+
+# plotting fitted splines to the pupil diameter data
+f_cis %>%
+ggplot() + 
+  geom_vline(xintercept = knot_list, color = "black", alpha = 1/2) +
+  geom_hline(yintercept = coef(mod)[1], color = "black", linetype = 2) + # dashed line plots the intercept
+  geom_point(aes(x = time, y = diameter), color = "#ffb7c5", alpha = 1/2) +
+  geom_line(aes(x = time, y = pred), col = "black", alpha = 2/3) +
+  geom_ribbon(aes(x = time, y = pred, ymin = `LCB0.025`, ymax = `UCB0.975`), alpha = .3)
+```
+
+# Improving the model
+
+We can do better than the first model and to do so, we can change the number of knots, or the polynomial degree. The number and location of the knots is a modelling choice from the researcher. In line with McElreath, we'll go with 15 and split them into equal quantiles. But this could feasibly be any number and location. For example, if you know a priori that an event occurs at a particular time, you might want to investigate placing a knot around that area. 
+
+The other thing we can change is the degree of the polynomial. In the first example, this was set as 1 in order to produce linear approximations between the knots. This can be set to any number in theory - 2 would be quadratic, 3 would be cubic. 
+
+```{r}
+# increasing number of knots to create the spline
+num_knots <- 15
+# split time into 15 quantiles - using 15 for now but this can change
+knot_list <- quantile(pupil_timecourse$time, probs = seq(from = 0, to = 1, length.out = num_knots))
+
+# plotting data alongside the knots
+pupil_timecourse %>% 
+  ggplot(aes(x = time, y = diameter)) +
+  geom_vline(xintercept = knot_list, color = "black", alpha = 1/2) +
+  geom_point(alpha = 1/2) 
+
+# the previous model contained   
+B <- bs(pupil_timecourse$time,
+        knots = knot_list[-c(1, num_knots)], # we remove the first and last knot values because bs() automatically adds knots at the boundaries
+        degree = 3, 
+        intercept = TRUE)
+
+# some data wrangling to produce plots 
+b <-
+  B %>%
+  data.frame() %>% # convert to data frame 
+  set_names(c(str_c(0, 1:9), 10:17)) %>% # setting basis function names 
+  bind_cols(select(pupil_timecourse, time)) %>% # combine to the original dataframe 
+  pivot_longer(-time,
+               names_to = "basis_function",
+               values_to = "bias")
+
+# at each knot, the overall wiggly line is constructed using other wiggly lines - we currently have 17 basis functions. 
+b %>% 
+  ggplot(aes(x = time, y = bias, group = basis_function)) +
+  geom_vline(xintercept = knot_list, color = "black", alpha = 1/2) +
+  geom_line(color = "#ffb7c5", alpha = 1/2, linewidth = 1.5) +
+  ylab("basis value") 
+
+# by faceting by basis functions, we can see what the different basis functions look like
+b %>% 
+  ggplot(aes(x = time, y = bias)) +
+  geom_vline(xintercept = knot_list, color = "black", alpha = 1/2) +
+  geom_line(color = "#ffb7c5", alpha = .7, linewidth = 1.5) +
+  xlab("time") +
+  ylab("basis value") +
+  facet_wrap(~ basis_function)
+
+# add the base function values to the main data set for modelling 
+d_new <-
+  pupil_timecourse %>% 
+  mutate(B = B) 
+
+# fit a model that predicts pupil diameter by the basis functions
+mod_2 <- lm(diameter ~ 1 + B, data = d_new)
+
+# the parameters when using splines are largely uninterpretable - it really only makes sense to plot the fitted values, or compare model fits via leave one out validation
+summary(mod_2)
+
+# how the basis functions interact with the knots
+coef(mod_2) %>%
+  as.data.frame() %>% # converting coefficient into a data frame
+  dplyr::rename("weight" = ".") %>% # renaming variable as the weight of the basis function
+  rownames_to_column(var = "basis_function") %>% # basis function name 
+  dplyr::filter(basis_function != "(Intercept)") %>%
+  dplyr::mutate(basis_function = as.character(row_number())) %>%
+  full_join(b, by = "basis_function") %>%
+  ggplot(aes(x = time, y = bias * weight, group = basis_function)) +
+  geom_vline(xintercept = knot_list, color = "black", alpha = 1/2) +
+  geom_line(color = "#ffb7c5", alpha = .7, linewidth = 1.5) 
+
+# calculating fitted values and associated CIs for the new model with increased knots and higher polynomial
+f_cis <- add_ci(pupil_timecourse, mod_2)
+
+# plotting fitted splines to the pupil diameter data - a much better, more wiggly fit the data
+f_cis %>%
+ggplot() + 
+  geom_vline(xintercept = knot_list, color = "black", alpha = 1/2) +
+  geom_hline(yintercept = coef(mod_2)[1], color = "black", linetype = 2) + # dashed line plots the intercept
+  geom_point(aes(x = time, y = diameter), color = "#ffb7c5", alpha = 1/2) +
+  geom_line(aes(x = time, y = pred), col = "black", alpha = 2/3) +
+  geom_ribbon(aes(x = time, y = pred, ymin = `LCB0.025`, ymax = `UCB0.975`), alpha = .3)
+```
