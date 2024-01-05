@@ -9,6 +9,19 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+In this markdown file, I replicate some analysis from McElreath on how to fit splines to data. In this example, I use pupil diameter over time. Current;y I implement a spline for the average pupil size. However, ideally this should be extended to include individual pupil diameter time courses for each participant within each condition. Some guidance on how to do this is included before.
+
+- https://stats.stackexchange.com/questions/403772/different-ways-of-modelling-interactions-between-continuous-and-categorical-pred - *modelling the interaction between a continous timecourse and a categorical variable alongside random effects.* 
+
+- https://m-clark.github.io/generalized-additive-models/introduction.html - *introduction to generalised additive models*
+
+
+References used:
+
+*McElreath, R. (2018). Statistical rethinking: A Bayesian course with examples in R and Stan. Chapman and Hall/CRC.*
+
+*van Rij, J., Hendriks, P., van Rijn, H., Baayen, R. H., & Wood, S. N. (2019). Analyzing the time course of pupillometric data. Trends in hearing, 23, 2331216519832483.*
+
 ## Packages
 
 ```{r}
@@ -56,6 +69,9 @@ library(splines)
 
 if(!require(ciTools)) install.packages("ciTools")
 library(ciTools)
+
+if(!require(mgcv)) install.packages("mgcv")
+library(mgcv)
 ```
 
 ## Applying splines to pupil dilation data
