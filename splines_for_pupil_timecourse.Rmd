@@ -22,6 +22,8 @@ References used:
 
 *van Rij, J., Hendriks, P., van Rijn, H., Baayen, R. H., & Wood, S. N. (2019). Analyzing the time course of pupillometric data. Trends in hearing, 23, 2331216519832483.*
 
+*Ito, A., & Knoeferle, P. (2022). Analysing data from the psycholinguistic visual-world paradigm: Comparison of different analysis methods. Behavior Research Methods, 1-33.*
+
 ## Packages
 
 ```{r}
