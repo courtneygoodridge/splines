@@ -74,6 +74,9 @@ library(ciTools)
 
 if(!require(mgcv)) install.packages("mgcv")
 library(mgcv)
+
+if(!require(stringr)) install.packages("stringr")
+library(stringr)
 ```
 
 ## Applying splines to pupil dilation data
@@ -142,11 +145,13 @@ num_knots <- 5
 knot_list <- quantile(pupil_timecourse$time, probs = seq(from = 0, to = 1, length.out = num_knots))
 
 # plotting pupil diameter alongside the knots
-ggplot() +
+pupil_timecourse_plot <- ggplot() +
   geom_vline(xintercept = knot_list, color = "black", alpha = .5) +
   geom_point(pupil_timecourse, mapping = aes(x= time, y = diameter), alpha = .5) +
   xlab("Time (s)") +
   ylab("Diameter (mm)")
+
+ggsave(here::here("splines/Plots/pupil_timecourse_plot.tiff"), plot = pupil_timecourse_plot, width = 16, height = 8, units = 'cm', dpi = 300, type = 'cairo')
 ```
 
 # Plotting knots and basis functions
@@ -316,11 +321,17 @@ coef(mod_2) %>%
 f_cis <- add_ci(pupil_timecourse, mod_2)
 
 # plotting fitted splines to the pupil diameter data - a much better, more wiggly fit the data
-f_cis %>%
+pupil_timecourse_spline_plot <- f_cis %>%
 ggplot() + 
-  geom_vline(xintercept = knot_list, color = "black", alpha = 1/2) +
+  geom_vline(xintercept = knot_list, color = "black", alpha = .5) +
+  geom_point(pupil_timecourse, mapping = aes(x= time, y = diameter), alpha = .5) +
+  xlab("Time (s)") +
+  ylab("Diameter (mm)") +
   geom_hline(yintercept = coef(mod_2)[1], color = "black", linetype = 2) + # dashed line plots the intercept
-  geom_point(aes(x = time, y = diameter), color = "#ffb7c5", alpha = 1/2) +
-  geom_line(aes(x = time, y = pred), col = "black", alpha = 2/3) +
-  geom_ribbon(aes(x = time, y = pred, ymin = `LCB0.025`, ymax = `UCB0.975`), alpha = .3)
+  geom_line(aes(x = time, y = pred), color = "red", alpha = 2/3) +
+  geom_ribbon(aes(x = time, y = pred, ymin = `LCB0.025`, ymax = `UCB0.975`), color = "#ffb7c5", alpha = .3)
+
+ggsave(here::here("splines/Plots/pupil_timecourse_spline_plot.tiff"), plot = pupil_timecourse_spline_plot, width = 16, height = 8, units = 'cm', dpi = 300, type = 'cairo')
 ```
+
+#
