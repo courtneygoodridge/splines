@@ -15,7 +15,10 @@ The main script is: `splines_for_pupil_timecourse.Rmd`. In this script, I first 
 
 ![image](https://github.com/courtneygoodridge/splines/assets/44811378/704128f8-c73a-4833-81b4-a7d8a2901bfe)
 
-And here is an example of the model fit. It highlights the increase in pupil diameter 
+And here is an example of the model fit plotted over the data. The predicted pupil diameter is plotted with confidence intervals. It highlights the increase in pupil diameter at approximately  5 s after the start of the critical takeover. This could be due to the increased arousal of having to deal with a critical situation. It would be due to the visual looming of the car ahead (pupils dilate when looking at things closer to us). 
+
+![image](https://github.com/courtneygoodridge/splines/assets/44811378/af56c25a-7a8a-4ff4-b697-ab3bf0d30463)
+
 I am then planning on implementing an analysis to compare pupil diameter timecourse between differing conditions. 
 
 The `Plots` folder contains plots from the analysis script. 
