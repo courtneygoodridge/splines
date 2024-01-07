@@ -10,6 +10,8 @@ The data used is pupil diameter over time collected during a driving simulator e
 
 The main script is: `splines_for_pupil_timecourse.Rmd`. In this script, I first use splines to model the average pupil diameter over time. I am then planning on implementing an analysis to compare pupil diameter timecourse between differing conditions. 
 
+The `Plots` folder contains plots from the analysis script. 
+
 **Application**
 
 Whilst this data here focuses on pupil diameter (i.e., physiological data), the analysis method is very useful for a range of different data types. Splines are often used in Economics to find pattens and trends over time.
