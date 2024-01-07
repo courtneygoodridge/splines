@@ -324,7 +324,7 @@ f_cis <- add_ci(pupil_timecourse, mod_2)
 pupil_timecourse_spline_plot <- f_cis %>%
 ggplot() + 
   geom_vline(xintercept = knot_list, color = "black", alpha = .5) +
-  geom_point(pupil_timecourse, mapping = aes(x= time, y = diameter), alpha = .5) +
+  geom_point(pupil_timecourse, mapping = aes(x= time, y = diameter), alpha = .3) +
   xlab("Time (s)") +
   ylab("Diameter (mm)") +
   geom_hline(yintercept = coef(mod_2)[1], color = "black", linetype = 2) + # dashed line plots the intercept
@@ -334,4 +334,38 @@ ggplot() +
 ggsave(here::here("splines/Plots/pupil_timecourse_spline_plot.tiff"), plot = pupil_timecourse_spline_plot, width = 16, height = 8, units = 'cm', dpi = 300, type = 'cairo')
 ```
 
-#
+# Interaction between continous and categorical variables 
+
+Thus far, we have focused on the average pupil diameter of one condition (when N-back during automation was true, and for the most critical scenario). However, we might expect the timecourse of pupil diameter to change depending on whether drivers completed N-back during the 2 minutes of automation. If we average the data for when drivers completed N-back or not, and plot over time, we can see that there might be a difference in the timecourse in the first 10 s, but perhaps not so much after that
+
+```{r}
+# average pupil diameter during takeovers when ttc = 3 s
+pupil_timecourse_n_back <- dat.eye.manual %>%
+  dplyr::group_by(trialid) %>%
+  dplyr::mutate(frame = row_number()) %>%
+  dplyr::ungroup() %>%
+  dplyr::filter(ttc_criticality == 3) %>%
+  dplyr::group_by(frame, n_back) %>%
+  dplyr::summarise(diameter = mean(`dme_core/pupil/right_pupil_diameter_mm`)) %>%
+  dplyr::mutate(time = frame / 60) 
+
+ggplot() +
+  #geom_vline(xintercept = knot_list, color = "black", alpha = .5) +
+  geom_point(pupil_timecourse_n_back, mapping = aes(x= time, y = diameter, col = n_back), alpha = .5) +
+  scale_color_discrete(name = "Secondary task", labels = c("No N-back", "N-back")) +
+  xlab("Time (s)") +
+  ylab("Diameter (mm)") +
+  theme(legend.position = "bottom")
+```
+
+# Fitting a model to investigate influence of N-back
+
+
+```{r}
+m1 <- gam(diameter ~ n_back + s(time, by = n_back, k = 20),
+          data = pupil_timecourse_n_back %>%
+            dplyr::mutate(n_back = as.factor(n_back)))
+
+draw(m1)
+
+```
