@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 In this markdown file, I replicate some analysis from McElreath on how to fit splines to data. In this example, I use pupil diameter over time. Current;y I implement a spline for the average pupil size. However, ideally this should be extended to include individual pupil diameter time courses for each participant within each condition. Some guidance on how to do this is included before.
 
-- https://stats.stackexchange.com/questions/403772/different-ways-of-modelling-interactions-between-continuous-and-categorical-pred - *modelling the interaction between a continous timecourse and a categorical variable alongside random effects.* 
+- https://stats.stackexchange.com/questions/403772/different-ways-of-modelling-interactions-between-continuous-and-categorical-pred - *modelling the interaction between a continuous timecourse and a categorical variable alongside random effects.* 
 
 - https://m-clark.github.io/generalized-additive-models/introduction.html - *introduction to generalised additive models*
 
@@ -92,6 +92,33 @@ A spline is a function that allows a researcher to model non-linear data. In sho
 
 To do this, synthetic variables are created and used in the linear model to predict mu. The synthetic variables are called *basis functions* (or sometimes known as *base functions*). How do we create the basis functions? Well, the simplest case would be that pupil diameter is a combination of linear approximations. To construct the basis functions, we divide the full range of the horizontal axis into parts - in this example, lets use 4. These parts are  pivot points called *knots*. These can largely be placed anywhere and in any number (they are part of the model and thus are a decision the researcher needs to make). In this example, I put them at specific quantiles so each partion contains the same number of data points (albeit the distance between them might not be the same). The data used in this example is average pupil diameter over time for the n_back = TRUE, ttc_criticality = 3, condition. 
 
+# Loading data
+
+I am loading data from a local disk, but this is not being provided on Github. This is out of my control at the moment as I do not have permission to share. When I do, I will share the data. 
+
+```{r}
+# loading eye tracking data and removing invalid participants
+options(digits = 15)
+dat.eye <- fread(file = here::here("ITS/Work package 6.5 (HiDrive)/TME study/Data/Eye data/dat.eye.full.timecourse.csv")) %>%
+  dplyr::filter(ppid != 34, ppid != 39, ppid != 47)
+
+# eye data from TOR to end of manual driving period (timecourse)
+dat.eye.manual <- dat.eye %>%
+  dplyr::group_by(trialid) %>%
+  # filter data
+  dplyr::filter(critical_or_no == "critical_takeover") %>%
+  # calculate a common timestamp and use the first 30 s
+  dplyr::mutate(timestamp_common = cumsum(c(0, diff(X.simTime))), frame = row_number()) %>%
+  dplyr::filter(timestamp_common <= 30)
+```
+
+# Averaging pupil diameter timecourse
+
+Initially, I am going to average pupil diameter for first bit of this tutorial. This is subopitmal for a number of reasons:
+
+- I have not removed blinks, but averaged over them. I am still working on an algorithm to remove them.
+- Ideally I would like to implement a multilevel model that accounts for differences between different people in their pupil diameter. This comes later in the tutorial. 
+
 ```{r}
 # average pupil diameter during takeovers when N-back was TRUE, and ttc = 3 s
 pupil_timecourse <- dat.eye.manual %>%
@@ -117,7 +144,9 @@ knot_list <- quantile(pupil_timecourse$time, probs = seq(from = 0, to = 1, lengt
 # plotting pupil diameter alongside the knots
 ggplot() +
   geom_vline(xintercept = knot_list, color = "black", alpha = .5) +
-  geom_point(pupil_timecourse, mapping = aes(x= time, y = diameter), alpha = .5) 
+  geom_point(pupil_timecourse, mapping = aes(x= time, y = diameter), alpha = .5) +
+  xlab("Time (s)") +
+  ylab("Diameter (mm)")
 ```
 
 # Plotting knots and basis functions
