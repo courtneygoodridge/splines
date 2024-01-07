@@ -13,6 +13,8 @@ In this markdown file, I replicate some analysis from McElreath on how to fit sp
 
 - https://stats.stackexchange.com/questions/403772/different-ways-of-modelling-interactions-between-continuous-and-categorical-pred - *modelling the interaction between a continuous timecourse and a categorical variable alongside random effects.* 
 
+- https://jacolienvanrij.com/Tutorials/GAMM.html - *tutorial on GAMMs*
+
 - https://m-clark.github.io/generalized-additive-models/introduction.html - *introduction to generalised additive models*
 
 
@@ -360,12 +362,15 @@ ggplot() +
 
 # Fitting a model to investigate influence of N-back
 
+The *mgcv* package for fitting Generalised Additive Models (GAMs) to model non-linear data. They also allow for multiple level models, but we focus first on the fixed effects. 
+
+Model 1 (m1) aims to model a seperate smooth for each level of n_back. The *gratia* package has a function for plotting how it would be more benefical to try and plot this ourselves. This webpage is a good indication of how to do that (https://gavinsimpson.github.io/gratia/articles/custom-plotting.html). 
 
 ```{r}
+# modelling average pupil diameter over time, for both levels of n-back 
 m1 <- gam(diameter ~ n_back + s(time, by = n_back, k = 20),
           data = pupil_timecourse_n_back %>%
             dplyr::mutate(n_back = as.factor(n_back)))
 
-draw(m1)
-
+summary(m1)
 ```
