@@ -1,8 +1,8 @@
-**splines**
+# Splines
 
 **Disclaimer**: *This is a working repository and so information and code may change*
 
-**Overview**
+## Overview
 
 Splines are a way of analysing non-linear data (i.e.,very wiggly data). In this repository, I use Richard McElreath's tutorial on splines in his book, *Statistical Rethinking* and apply this to analyse to pupil diameter over time. Unfortunately the data is not available to share at this time. This is outside of my control. However, I can explain what the data is and how it was generated. 
 
@@ -16,7 +16,7 @@ I am then planning on implementing an analysis to compare pupil diameter timecou
 
 The `Plots` folder contains plots from the analysis script. 
 
-**Application**
+## Application
 
 Whilst this data here focuses on pupil diameter (i.e., physiological data), the analysis method is very useful for a range of different data types. Splines are often used in Economics to find pattens and trends over time.
 
