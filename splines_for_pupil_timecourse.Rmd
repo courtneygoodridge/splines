@@ -81,6 +81,15 @@ if(!require(stringr)) install.packages("stringr")
 library(stringr)
 ```
 
+## Plot theme
+
+Theme for all the plots in this manuscript
+
+```{r}
+theme_plot <- theme(axis.title.x = element_text(size = 15), axis.text.x = element_text(size = 15), axis.title.y = element_text(size = 15), axis.text.y = element_text(size = 15), title = element_text(size = 18), legend.title = element_text(size = 10), legend.text = element_text(size = 10), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"))
+```
+
 ## Applying splines to pupil dilation data
 
 When plotting pupil size over time, it is clear that there is a pattern during takeovers, and that perhaps this pattern changes as a function of N-back or TTC. But focusing on mean differences or even the variance over time does not reveal it. McElreath highlights how to use B splines to model this, with further help from Kurz (https://bookdown.org/content/4857/geocentric-models.html#splines). I am going to work through their cherry blossom example before trying to apply it to the pupil data. 
@@ -149,11 +158,13 @@ knot_list <- quantile(pupil_timecourse$time, probs = seq(from = 0, to = 1, lengt
 # plotting pupil diameter alongside the knots
 pupil_timecourse_plot <- ggplot() +
   geom_vline(xintercept = knot_list, color = "black", alpha = .5) +
-  geom_point(pupil_timecourse, mapping = aes(x= time, y = diameter), alpha = .5) +
+  geom_point(pupil_timecourse, mapping = aes(x= time, y = diameter), alpha = .2) +
+  ylim(3, 4.5) +
   xlab("Time (s)") +
-  ylab("Diameter (mm)")
+  ylab("Diameter (mm)") +
+  theme_plot
 
-ggsave(here::here("splines/Plots/pupil_timecourse_plot.tiff"), plot = pupil_timecourse_plot, width = 16, height = 8, units = 'cm', dpi = 300, type = 'cairo')
+ggsave(here::here("splines/Plots/pupil_timecourse_plot.tiff"), plot = pupil_timecourse_plot, width = 10, height = 6, units = 'cm', dpi = 300, type = 'cairo')
 ```
 
 # Plotting knots and basis functions
@@ -327,18 +338,20 @@ pupil_timecourse_spline_plot <- f_cis %>%
 ggplot() + 
   geom_vline(xintercept = knot_list, color = "black", alpha = .5) +
   geom_point(pupil_timecourse, mapping = aes(x= time, y = diameter), alpha = .3) +
+  ylim(3, 4.5) +
   xlab("Time (s)") +
   ylab("Diameter (mm)") +
   geom_hline(yintercept = coef(mod_2)[1], color = "black", linetype = 2) + # dashed line plots the intercept
   geom_line(aes(x = time, y = pred), color = "red", alpha = 2/3) +
-  geom_ribbon(aes(x = time, y = pred, ymin = `LCB0.025`, ymax = `UCB0.975`), color = "#ffb7c5", alpha = .3)
+  geom_ribbon(aes(x = time, y = pred, ymin = `LCB0.025`, ymax = `UCB0.975`), color = "#ffb7c5", alpha = .3) +
+  theme_plot
 
-ggsave(here::here("splines/Plots/pupil_timecourse_spline_plot.tiff"), plot = pupil_timecourse_spline_plot, width = 16, height = 8, units = 'cm', dpi = 300, type = 'cairo')
+ggsave(here::here("splines/Plots/pupil_timecourse_spline_plot.tiff"), plot = pupil_timecourse_spline_plot, width = 10, height = 6, units = 'cm', dpi = 300, type = 'cairo')
 ```
 
 # Interaction between continous and categorical variables 
 
-Thus far, we have focused on the average pupil diameter of one condition (when N-back during automation was true, and for the most critical scenario). However, we might expect the timecourse of pupil diameter to change depending on whether drivers completed N-back during the 2 minutes of automation. If we average the data for when drivers completed N-back or not, and plot over time, we can see that there might be a difference in the timecourse in the first 10 s, but perhaps not so much after that
+Thus far, we have focused on the average pupil diameter of one condition (when N-back during automation was true, and for the most critical scenario). However, we might expect the timecourse of pupil diameter to change depending on whether drivers completed N-back during the 2 minutes of automation or not. If we average the data for when drivers completed N-back or not, and plot over time, we can see that there might be a difference in the timecourse in the first 10 s, but perhaps not so much after that. Hence we might want to test whether there are differences in the timecourse as a function of N-back. 
 
 ```{r}
 # average pupil diameter during takeovers when ttc = 3 s
@@ -364,7 +377,20 @@ ggplot() +
 
 The *mgcv* package for fitting Generalised Additive Models (GAMs) to model non-linear data. They also allow for multiple level models, but we focus first on the fixed effects. 
 
-Model 1 (m1) aims to model a seperate smooth for each level of n_back. The *gratia* package has a function for plotting how it would be more benefical to try and plot this ourselves. This webpage is a good indication of how to do that (https://gavinsimpson.github.io/gratia/articles/custom-plotting.html). 
+Model 1 (m1) aims to model a seperate smooth for each level of n_back. The *"k"* argument in the *s()* function within the *gam()* specifies the number of basis functions. The documentation state that this should not restrictively small, nor too large (for computational issues). 
+
+The *gratia* package has a function for plotting how it would be more beneficial to try and plot this ourselves. This webpage is a good indication of how to do that (https://gavinsimpson.github.io/gratia/articles/custom-plotting.html). 
+
+
+From the Generalised Additive Model, we can plot what are called "partial effects". Partial effects  refer to the isolated change in the value of the response variable for every unit change in the predictor variable. 
+
+Open questions:
+
+- Are partial effects estimations of deviations from the intercepts (which are themselves the mean over the timecourse)?
+
+Partial effects seem to reveal that although pupil diameter increases at approximately the same rate, the enlarged pupil diameter persists for longer when drivers have completed N-back during automation. 
+
+*(https://towardsdatascience.com/producing-insights-with-generalized-additive-models-gams-cf2b68b1b847)* - might be useful. 
 
 ```{r}
 # modelling average pupil diameter over time, for both levels of n-back 
@@ -372,5 +398,18 @@ m1 <- gam(diameter ~ n_back + s(time, by = n_back, k = 20),
           data = pupil_timecourse_n_back %>%
             dplyr::mutate(n_back = as.factor(n_back)))
 
+# evaluate the smooths
+sm <- smooth_estimates(m1) %>%
+  add_confint()
+
+# add partial residuals to data
+pupil_timecourse_n_back <- pupil_timecourse_n_back %>%
+  add_partial_residuals(m1)
+
+ggplot(sm, mapping = aes(time, est, col = as.factor(n_back))) +
+  geom_path()
+
 summary(m1)
+
+plot(m1, all.terms=TRUE, rug=FALSE)
 ```
