@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-In this markdown file, I replicate some analysis from McElreath on how to fit splines to data. In this example, I use pupil diameter over time. Current;y I implement a spline for the average pupil size. However, ideally this should be extended to include individual pupil diameter time courses for each participant within each condition. Some guidance on how to do this is included before.
+In this markdown file, I replicate some analysis from McElreath on how to fit splines to data. In this example, I use pupil diameter over time. Currently I implement a spline for the average pupil size. However, ideally this should be extended to include individual pupil diameter time courses for each participant within each condition. Some guidance on how to do this is included before.
 
 - https://stats.stackexchange.com/questions/403772/different-ways-of-modelling-interactions-between-continuous-and-categorical-pred - *modelling the interaction between a continuous timecourse and a categorical variable alongside random effects.* 
 
@@ -18,13 +18,15 @@ In this markdown file, I replicate some analysis from McElreath on how to fit sp
 - https://m-clark.github.io/generalized-additive-models/introduction.html - *introduction to generalised additive models*
 
 
-References used:
+# References
 
 *McElreath, R. (2018). Statistical rethinking: A Bayesian course with examples in R and Stan. Chapman and Hall/CRC.*
 
 *van Rij, J., Hendriks, P., van Rijn, H., Baayen, R. H., & Wood, S. N. (2019). Analyzing the time course of pupillometric data. Trends in hearing, 23, 2331216519832483.*
 
 *Ito, A., & Knoeferle, P. (2022). Analysing data from the psycholinguistic visual-world paradigm: Comparison of different analysis methods. Behavior Research Methods, 1-33.*
+
+*Perperoglou, A., Sauerbrei, W., Abrahamowicz, M., & Schmid, M. (2019). A review of spline function procedures in R. BMC medical research methodology, 19(1), 1-16.*
 
 ## Packages
 
@@ -79,6 +81,12 @@ library(mgcv)
 
 if(!require(stringr)) install.packages("stringr")
 library(stringr)
+
+if(!require(brms)) install.packages("brms")
+library(brms)
+
+if(!require(gratia)) install.packages("gratia")
+library(gratia)
 ```
 
 ## Plot theme
@@ -106,7 +114,7 @@ A spline is a function that allows a researcher to model non-linear data. In sho
 
 To do this, synthetic variables are created and used in the linear model to predict mu. The synthetic variables are called *basis functions* (or sometimes known as *base functions*). How do we create the basis functions? Well, the simplest case would be that pupil diameter is a combination of linear approximations. To construct the basis functions, we divide the full range of the horizontal axis into parts - in this example, lets use 4. These parts are  pivot points called *knots*. These can largely be placed anywhere and in any number (they are part of the model and thus are a decision the researcher needs to make). In this example, I put them at specific quantiles so each partion contains the same number of data points (albeit the distance between them might not be the same). The data used in this example is average pupil diameter over time for the n_back = TRUE, ttc_criticality = 3, condition. 
 
-# Loading data
+## Loading data
 
 I am loading data from a local disk, but this is not being provided on Github. This is out of my control at the moment as I do not have permission to share. When I do, I will share the data. 
 
@@ -126,7 +134,7 @@ dat.eye.manual <- dat.eye %>%
   dplyr::filter(timestamp_common <= 30)
 ```
 
-# Averaging pupil diameter timecourse
+## Averaging pupil diameter timecourse
 
 Initially, I am going to average pupil diameter for first bit of this tutorial. This is subopitmal for a number of reasons:
 
@@ -167,7 +175,7 @@ pupil_timecourse_plot <- ggplot() +
 ggsave(here::here("splines/Plots/pupil_timecourse_plot.tiff"), plot = pupil_timecourse_plot, width = 10, height = 6, units = 'cm', dpi = 300, type = 'cairo')
 ```
 
-# Plotting knots and basis functions
+## Plotting knots and basis functions
 
 The *knots* act as pivots for the *basis functions* and are used to transition from one region to the next. In the plot below, basis function 1 has a value of 1 at the first knot whilst all others are set to zero. As we move to the right, the value of basis function one decreases and the value of basis function 2 increases. As knot 2, basis function 1 has a value of 0 and basis function 2 has a value of 1. 
 
@@ -208,7 +216,7 @@ b %>%
   facet_wrap(~ basis_function)
 ```
 
-# Combining the basis functions
+## Combining the basis functions
 
 If we fit the model to data, we can generate weights for each of these basis functions. Multiplying the basis function by its weight helps structure the functions in an attempt to approximate the pupil diameter over time. As you can see, the combination of basis function attempts to model the peak in pupil diameter that occurs at around 10 s. 
 
@@ -237,7 +245,7 @@ coef(mod) %>%
   geom_line(color = "#ffb7c5", alpha = .7, linewidth = 1.5) 
 ```
 
-# Predicting pupil diameter
+## Predicting pupil diameter
 
 To make a prediction of pupil diameter at any given time point, we just combine the basis functions at that year. For example, the pupil diameter 10 s after the TOR would be the sum of basis functions at that point. Finally, we can plot the spline over the raw data (alongside CIs) to understand the trend. 
 
@@ -257,7 +265,7 @@ ggplot() +
   geom_ribbon(aes(x = time, y = pred, ymin = `LCB0.025`, ymax = `UCB0.975`), alpha = .3)
 ```
 
-# Improving the model
+## Improving the model
 
 We can do better than the first model and to do so, we can change the number of knots, or the polynomial degree. The number and location of the knots is a modelling choice from the researcher. In line with McElreath, we'll go with 15 and split them into equal quantiles. But this could feasibly be any number and location. For example, if you know a priori that an event occurs at a particular time, you might want to investigate placing a knot around that area. 
 
@@ -349,7 +357,7 @@ ggplot() +
 ggsave(here::here("splines/Plots/pupil_timecourse_spline_plot.tiff"), plot = pupil_timecourse_spline_plot, width = 10, height = 6, units = 'cm', dpi = 300, type = 'cairo')
 ```
 
-# Interaction between continous and categorical variables 
+## Interaction between continous and categorical variables 
 
 Thus far, we have focused on the average pupil diameter of one condition (when N-back during automation was true, and for the most critical scenario). However, we might expect the timecourse of pupil diameter to change depending on whether drivers completed N-back during the 2 minutes of automation or not. If we average the data for when drivers completed N-back or not, and plot over time, we can see that there might be a difference in the timecourse in the first 10 s, but perhaps not so much after that. Hence we might want to test whether there are differences in the timecourse as a function of N-back. 
 
@@ -373,28 +381,26 @@ ggplot() +
   theme(legend.position = "bottom")
 ```
 
-# Fitting a model to investigate influence of N-back
+## Fitting a model to investigate influence of N-back
 
-The *mgcv* package for fitting Generalised Additive Models (GAMs) to model non-linear data. They also allow for multiple level models, but we focus first on the fixed effects. 
+The *mgcv* package for fitting Generalised Additive Models (GAMs) to model non-linear data. They also allow for multilevel models, but we focus first on the fixed effects. 
 
-Model 1 (m1) aims to model a seperate smooth for each level of n_back. The *"k"* argument in the *s()* function within the *gam()* specifies the number of basis functions. The documentation state that this should not restrictively small, nor too large (for computational issues). 
+# Thin plate regression splines using mgcv
 
-The *gratia* package has a function for plotting how it would be more beneficial to try and plot this ourselves. This webpage is a good indication of how to do that (https://gavinsimpson.github.io/gratia/articles/custom-plotting.html). 
+When using the *gam()* function, the first thing  we need to do is define the smooth term. This is the type of smooth function we want to model the data. This is set using the *s()*. By default a *thin plate regression spline* (TPRS) is used (or the following argument can be specified within the *s()*: *bs = "tp"*. Unlike the B-spline we have highlight above, TPRS does not require knots in the conventional sense. Rather every unique value (or combination of values) of the continuous variable acts as a knot and is thus used in the smooth. However, because this would generate a lot of basis functions that would be computationally wasteful, they are decomposed (via complex linear algebra that we needn't worry about for now) and the *k* first basis functions are used to create the smooth. In this sense, *k* specifies the the number of basis functions used in the calculation and effectively acts as an upper limit to the "wiggliness" of the relationship between the predictor variable and outcome variable. Setting *k* too large can have computational problems. 
 
+The advantage of TPRS is that we do not need a priori information about the location of the knots. The knot location can have an effect on the resultant smooth, and thus is a modelling consideration that should be properly thought about (https://www.publichealth.columbia.edu/research/population-health-methods/thin-plate-spline-regression#Description).
 
-From the Generalised Additive Model, we can plot what are called "partial effects". Partial effects  refer to the isolated change in the value of the response variable for every unit change in the predictor variable. 
+# Plotting the effects
 
-Open questions:
+The *gratia* package has a function for plotting, however it would be more beneficial to try and plot this ourselves. This webpage is a good indication of how to do that (https://gavinsimpson.github.io/gratia/articles/custom-plotting.html). From the Generalised Additive Model, we can plot what are called "partial effects". Partial effects  refer to the isolated change in the value of the response variable for every unit change in the predictor variable. 
 
-- Are partial effects estimations of deviations from the intercepts (which are themselves the mean over the timecourse)?
-
-Partial effects seem to reveal that although pupil diameter increases at approximately the same rate, the enlarged pupil diameter persists for longer when drivers have completed N-back during automation. 
-
-*(https://towardsdatascience.com/producing-insights-with-generalized-additive-models-gams-cf2b68b1b847)* - might be useful. 
+From the current fitted model, the partial effects seem to reveal that although pupil diameter increases at approximately the same rate, the enlarged pupil diameter persists for longer when drivers have completed N-back during automation. 
 
 ```{r}
 # modelling average pupil diameter over time, for both levels of n-back 
-m1 <- gam(diameter ~ n_back + s(time, by = n_back, k = 20),
+m1 <- gam(diameter ~ n_back + s(time, by = n_back, bs = "tp", k = 20),
+          method = "REML",
           data = pupil_timecourse_n_back %>%
             dplyr::mutate(n_back = as.factor(n_back)))
 
@@ -406,10 +412,48 @@ sm <- smooth_estimates(m1) %>%
 pupil_timecourse_n_back <- pupil_timecourse_n_back %>%
   add_partial_residuals(m1)
 
-ggplot(sm, mapping = aes(time, est, col = as.factor(n_back))) +
-  geom_path()
+# plotting partial effects 
+ggplot() +
+  geom_path(sm, mapping = aes(time, est, col = as.factor(n_back))) +
+  geom_ribbon(sm, mapping = aes(x = time, y = est, ymin = lower_ci, ymax = upper_ci, col = as.factor(n_back)), alpha = .3)
+```
 
-summary(m1)
+# B-splines using mgcv
 
-plot(m1, all.terms=TRUE, rug=FALSE)
+B-splines require some extra information within the *gam()*, but can also improve the flexibility of the modelling. As highlighted above, the knot locations need to chosen alongside the polynomial. For the knots, we create a list with the values of the continuous predictor we want to focus on. For this data, we have ~20 s of data so perhaps a knot for every second of data is sufficient to begin with. The *m* argument sets the polynomial order, such as that *m = 3* refers to a cubic spline and *m = 2* to a quadratic spline. As highlighted above, this refers to how many basis functions interact at the the specified knots. 
+
+
+```{r}
+knots <- list(x = c(seq(1, 20, 1)))
+
+m2 <- gam(diameter ~ n_back + s(time, by = n_back, bs = "bs", k = 20, m = c(3)),
+          method = "REML",
+          data = pupil_timecourse_n_back %>%
+            dplyr::mutate(n_back = as.factor(n_back)), knots = knots)
+
+# evaluate the smooths
+sm2 <- smooth_estimates(m2) %>%
+  add_confint()
+
+# plotting partial effects 
+ggplot() +
+  geom_path(sm2, mapping = aes(time, est, col = as.factor(n_back))) +
+  geom_ribbon(sm2, mapping = aes(x = time, y = est, ymin = lower_ci, ymax = upper_ci, col = as.factor(n_back)), alpha = .3)
+```
+
+
+## Bayesian equivalent 
+
+(https://fromthebottomoftheheap.net/2018/04/21/fitting-gams-with-brms/)
+
+```{r}
+ggplot(pupil_timecourse_n_back, mapping = aes(diameter)) + 
+  geom_density()
+
+
+m2 <- brm(bf(diameter ~ n_back + s(time, by = n_back, k = 5)),
+          data = pupil_timecourse_n_back, family = gaussian(),
+          iter = 10000, warmup = 2000, chains = 2, cores = 2, seed = 13)
+
+
 ```
